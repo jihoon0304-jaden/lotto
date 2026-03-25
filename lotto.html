@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>로또 패턴 분석기</title>
+<script src="lotto_data.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Malgun Gothic',sans-serif;background:#1a1a2e;color:#eee;min-height:100vh}
+.container{max-width:900px;margin:0 auto;padding:20px}
+h1{text-align:center;color:#e94560;font-size:28px;margin:20px 0}
+h2{color:#e94560;font-size:20px;margin:15px 0 10px 0;border-bottom:2px solid #e94560;padding-bottom:5px}
+h3{color:#ffd700;font-size:16px;margin:10px 0 5px 0}
+.section{background:#16213e;border-radius:12px;padding:20px;margin:15px 0;border:1px solid #0f3460}
+.input-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.input-row input{width:55px;height:40px;text-align:center;font-size:18px;font-weight:bold;border:2px solid #0f3460;border-radius:8px;background:#1a1a2e;color:#ffd700}
+.input-row input:focus{border-color:#e94560;outline:none}
+.input-row label{color:#aaa;font-size:14px;margin-right:5px}
+button{padding:10px 20px;font-size:15px;font-weight:bold;border:none;border-radius:8px;cursor:pointer;margin:5px}
+.btn-save{background:#e94560;color:white}
+.btn-save:hover{background:#c81e45}
+.btn-refresh{background:#ff6600;color:white;font-size:16px;padding:12px 25px}
+.btn-refresh:hover{background:#cc5200}
+.btn-confirm{background:#00cc66;color:white;font-size:13px;padding:8px 15px}
+.btn-confirm:hover{background:#009944}
+.btn-delete{background:#cc3333;color:white;font-size:12px;padding:5px 10px}
+.btn-delete:hover{background:#aa1111}
+.btn-reset{background:#333;color:#aaa}
+.btn-reset:hover{background:#555}
+.game-card{background:#0f3460;border-radius:10px;padding:15px;margin:10px 0;border-left:4px solid #ffd700}
+.game-card.grade-S{border-left-color:#ff0000}
+.game-card.grade-A{border-left-color:#ff6600}
+.game-card.grade-B{border-left-color:#ffd700}
+.game-card.grade-C{border-left-color:#00cc66}
+.ball{display:inline-block;width:38px;height:38px;line-height:38px;text-align:center;border-radius:50%;font-weight:bold;font-size:16px;margin:2px;color:white}
+.ball-1{background:#fbc400}.ball-2{background:#69c8f2}.ball-3{background:#ff7272}.ball-4{background:#aaa}.ball-5{background:#b0d840}
+.pattern-info{color:#aaa;font-size:13px;margin-top:5px}
+.no-dup{color:#66ff66;font-size:12px;margin-top:3px}
+.stats-table{width:100%;border-collapse:collapse;margin:10px 0}
+.stats-table th{background:#0f3460;color:#ffd700;padding:8px;text-align:center;font-size:13px}
+.stats-table td{padding:8px;text-align:center;border-bottom:1px solid #1a1a2e;font-size:13px}
+.stats-table tr:hover{background:#1a1a5e}
+.hot-number{display:inline-block;width:35px;height:35px;line-height:35px;text-align:center;border-radius:50%;font-weight:bold;font-size:14px;margin:3px}
+.hot-high{background:#e94560;color:white}.hot-mid{background:#ff6600;color:white}
+.hot-low{background:#0f3460;color:#ffd700;border:1px solid #ffd700}
+.pattern-bar{display:flex;gap:2px;margin:5px 0}
+.pattern-bar-item{height:20px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:11px;color:white}
+.msg{padding:10px;border-radius:8px;margin:10px 0;font-size:14px}
+.msg-success{background:#1a4a1a;color:#66ff66;border:1px solid #33aa33}
+.msg-info{background:#1a1a4a;color:#6699ff;border:1px solid #3355aa}
+.msg-warn{background:#4a4a1a;color:#ffff66;border:1px solid #aaaa33}
+.msg-match{background:#4a1a1a;color:#ff6666;border:2px solid #ff0000;font-size:16px;padding:15px}
+.last-draw{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px;background:#1a1a2e;border-radius:8px;margin:10px 0}
+.last-draw span{color:#aaa;font-size:14px}
+.my-card{background:#0f3460;border-radius:10px;padding:12px;margin:8px 0;border-left:4px solid #00cc66;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.my-card .match-info{font-size:13px;padding:3px 8px;border-radius:5px}
+.match-6{background:#ff0000;color:white;font-weight:bold;font-size:16px}
+.match-5{background:#ff6600;color:white;font-weight:bold}
+.match-4{background:#ffd700;color:#333}
+.match-3{background:#00cc66;color:white}
+.match-low{background:#333;color:#888}
+.sync-status{text-align:center;padding:5px;font-size:12px;border-radius:5px;margin:5px 0}
+.sync-ok{background:#1a4a1a;color:#66ff66}
+.sync-err{background:#4a1a1a;color:#ff6666}
+.footer{text-align:center;color:#555;font-size:12px;margin:30px 0 10px 0}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🎱 로또 패턴 분석기</h1>
+<div id="syncStatus" class="sync-status"></div>
+
+<!-- 당첨 알림 -->
+<div id="matchAlert"></div>
+
+<!-- 최근 당첨번호 -->
+<div class="section">
+<h2>📌 최근 당첨번호</h2>
+<div id="lastDraw" class="last-draw"></div>
+</div>
+
+<!-- 새 당첨번호 입력 -->
+<div class="section">
+<h2>✏️ 새 당첨번호 입력</h2>
+<div class="input-row">
+<label>회차:</label>
+<input type="number" id="inputRound" style="width:80px;">
+<label>번호:</label>
+<input type="number" id="n1" min="1" max="45">
+<input type="number" id="n2" min="1" max="45">
+<input type="number" id="n3" min="1" max="45">
+<input type="number" id="n4" min="1" max="45">
+<input type="number" id="n5" min="1" max="45">
+<input type="number" id="n6" min="1" max="45">
+<label>보너스:</label>
+<input type="number" id="nBonus" min="1" max="45">
+</div>
+<div>
+<button class="btn-save" onclick="saveNewDraw()">💾 저장하기</button>
+<button class="btn-reset" onclick="resetInput()">🔄 초기화</button>
+</div>
+<div id="saveMsg"></div>
+</div>
+
+<!-- 추천 5게임 -->
+<div class="section">
+<h2>🎯 추천 5게임</h2>
+<p style="color:#aaa;font-size:13px;margin-bottom:5px;">✅ 과거 1등 당첨 이력 없는 번호만 추천</p>
+<div style="margin:10px 0;">
+<button class="btn-refresh" onclick="generateRecommendations()">🔄 번호 다시 뽑기</button>
+</div>
+<div id="recommendations"></div>
+</div>
+
+<!-- 내 확정 번호 -->
+<div class="section">
+<h2>💰 내 확정 번호 저장소</h2>
+<p style="color:#aaa;font-size:13px;margin-bottom:10px;">확정한 번호는 서버에 자동 저장! 캐시 삭제해도 안전합니다 ☁️</p>
+<div id="myNumbers"></div>
+</div>
+<!-- 패턴 분석 -->
+<div class="section">
+<h2>📊 패턴 분석 (1등 전 등수 경로)</h2>
+<div id="patternStats"></div>
+</div>
+
+<!-- 핫넘버 -->
+<div class="section">
+<h2>🔥 핫넘버 (최근 100회 출현 빈도)</h2>
+<div id="hotNumbers"></div>
+</div>
+
+<!-- 최근 데이터 -->
+<div class="section">
+<h2>📋 최근 20회 당첨번호</h2>
+<div id="recentData"></div>
+</div>
+
+<div class="footer">
+로또 패턴 분석기 v3.0 (Firebase Cloud) | 데이터: 1회~최신회차<br>
+☁️ 서버 자동 저장 | ※ 참고용이며 당첨을 보장하지 않습니다
+</div>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBdLvfI1ItgRLtGs1qFLBMjZIn3tPaI3Nw",
+    authDomain: "lottl-jihoon.firebaseapp.com",
+    projectId: "lottl-jihoon",
+    storageBucket: "lottl-jihoon.firebasestorage.app",
+    messagingSenderId: "814020270032",
+    appId: "1:814020270032:web:e4895c727d7d1e00ed0bd5"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Firebase 함수들을 전역으로 노출
+window.fireDB = db;
+window.fireCollection = collection;
+window.fireDoc = doc;
+window.fireSetDoc = setDoc;
+window.fireGetDocs = getDocs;
+window.fireDeleteDoc = deleteDoc;
+
+// Firebase 준비 완료 신호
+window.firebaseReady = true;
+window.dispatchEvent(new Event('firebaseReady'));
+</script>
+
+<script>
+// ============================================
+// 데이터 관리
+// ============================================
+let allData = [];
+let firebaseLoaded = false;
+
+function initData() {
+    allData = LOTTO_DATA.map(d => ({
+        round: d[0],
+        numbers: [d[1],d[2],d[3],d[4],d[5],d[6]],
+        bonus: d[7]
+    }));
+    
+    // localStorage 백업에서도 불러오기
+    let extra = JSON.parse(localStorage.getItem('lotto_extra') || '[]');
+    extra.forEach(d => {
+        if (!allData.find(x => x.round === d.round)) {
+            allData.push(d);
+        }
+    });
+    allData.sort((a, b) => a.round - b.round);
+}
+
+// Firebase에서 추가 당첨번호 불러오기
+async function loadFromFirebase() {
+    try {
+        let snapshot = await window.fireGetDocs(window.fireCollection(window.fireDB, 'draws'));
+        let count = 0;
+        snapshot.forEach(docSnap => {
+            let d = docSnap.data();
+            if (!allData.find(x => x.round === d.round)) {
+                allData.push({ round: d.round, numbers: d.numbers, bonus: d.bonus });
+                count++;
+            }
+        });
+        allData.sort((a, b) => a.round - b.round);
+        
+        // localStorage에도 백업
+        let extra = allData.filter(d => d.round > LOTTO_DATA[LOTTO_DATA.length-1][0]);
+        localStorage.setItem('lotto_extra', JSON.stringify(extra));
+        
+        document.getElementById('syncStatus').innerHTML = '☁️ 서버 연결 완료! (총 ' + allData.length + '회차 데이터)';
+        document.getElementById('syncStatus').className = 'sync-status sync-ok';
+        firebaseLoaded = true;
+        refreshAll();
+    } catch(e) {
+        document.getElementById('syncStatus').innerHTML = '⚠️ 서버 연결 실패 - 로컬 데이터 사용 중 (' + allData.length + '회차)';
+        document.getElementById('syncStatus').className = 'sync-status sync-err';
+        console.log('Firebase 로드 에러:', e);
+    }
+}
+
+// Firebase에서 내 확정 번호 불러오기
+async function loadMyNumbersFromFirebase() {
+    try {
+        let snapshot = await window.fireGetDocs(window.fireCollection(window.fireDB, 'myNumbers'));
+        let myNums = [];
+        snapshot.forEach(docSnap => {
+            let d = docSnap.data();
+            d.id = parseInt(docSnap.id);
+            myNums.push(d);
+        });
+        if (myNums.length > 0) {
+            localStorage.setItem('my_lotto_numbers', JSON.stringify(myNums));
+        }
+        showMyNumbers();
+        checkMyMatches();
+    } catch(e) {
+        console.log('내 번호 로드 에러:', e);
+    }
+}
+
+// 당첨번호 저장 (Firebase + localStorage)
+async function saveNewDraw() {
+    let round = parseInt(document.getElementById('inputRound').value);
+    let nums = [];
+    for (let i = 1; i <= 6; i++) {
+        let v = parseInt(document.getElementById('n' + i).value);
+        if (isNaN(v) || v < 1 || v > 45) {
+            showMsg('saveMsg', '❌ 번호를 1~45 사이로 정확히 입력해주세요!', 'msg-warn');
+            return;
+        }
+        nums.push(v);
+    }
+    let bonus = parseInt(document.getElementById('nBonus').value);
+    if (isNaN(bonus) || bonus < 1 || bonus > 45) {
+        showMsg('saveMsg', '❌ 보너스 번호를 1~45 사이로 입력해주세요!', 'msg-warn');
+        return;
+    }
+    if (isNaN(round) || round < 1) {
+        showMsg('saveMsg', '❌ 회차를 입력해주세요!', 'msg-warn');
+        return;
+    }
+    if (allData.find(x => x.round === round)) {
+        showMsg('saveMsg', '⚠️ ' + round + '회차는 이미 있습니다!', 'msg-warn');
+        return;
+    }
+    
+    nums.sort((a, b) => a - b);
+    let newDraw = { round: round, numbers: nums, bonus: bonus };
+    
+    // localStorage 저장
+    let extra = JSON.parse(localStorage.getItem('lotto_extra') || '[]');
+    extra.push(newDraw);
+    localStorage.setItem('lotto_extra', JSON.stringify(extra));
+    
+    // Firebase 저장
+    try {
+        await window.fireSetDoc(window.fireDoc(window.fireDB, 'draws', String(round)), newDraw);
+        showMsg('saveMsg', '✅ ' + round + '회차 저장 완료! [' + nums.join(', ') + '] + 보너스: ' + bonus + ' ☁️ 서버 저장 완료!', 'msg-success');
+    } catch(e) {
+        showMsg('saveMsg', '✅ ' + round + '회차 로컬 저장 완료! (서버 저장은 실패 - 다음에 자동 동기화)', 'msg-warn');
+        console.log('Firebase 저장 에러:', e);
+    }
+    
+    allData.push(newDraw);
+    allData.sort((a, b) => a.round - b.round);
+    resetInput();
+    refreshAll();
+}
+
+function resetInput() {
+    document.getElementById('inputRound').value = '';
+    for (let i = 1; i <= 6; i++) document.getElementById('n' + i).value = '';
+    document.getElementById('nBonus').value = '';
+}
+
+function showMsg(id, text, cls) {
+    document.getElementById(id).innerHTML = '<div class="msg ' + cls + '">' + text + '</div>';
+    setTimeout(() => { document.getElementById(id).innerHTML = ''; }, 5000);
+}
+// ============================================
+// 공 색상
+// ============================================
+function getBallClass(n) {
+    if (n <= 10) return 'ball-1';
+    if (n <= 20) return 'ball-2';
+    if (n <= 30) return 'ball-3';
+    if (n <= 40) return 'ball-4';
+    return 'ball-5';
+}
+function makeBall(n) {
+    return '<span class="ball ' + getBallClass(n) + '">' + n + '</span>';
+}
+
+// ============================================
+// 패턴 분석 핵심
+// ============================================
+function countMatches(nums1, nums2) {
+    let count = 0;
+    for (let i = 0; i < nums1.length; i++) {
+        for (let j = 0; j < nums2.length; j++) {
+            if (nums1[i] === nums2[j]) count++;
+        }
+    }
+    return count;
+}
+
+function analyzePattern(targetIndex) {
+    let target = allData[targetIndex];
+    let match3 = 0, match4 = 0, match5 = 0;
+    for (let i = 0; i < targetIndex; i++) {
+        let m = countMatches(target.numbers, allData[i].numbers);
+        if (m === 3) match3++;
+        if (m === 4) match4++;
+        if (m === 5) match5++;
+    }
+    return { match3: match3, match4: match4, match5: match5 };
+}
+
+function getGrade(p) {
+    if (p.match5 >= 1) return 'S';
+    if (p.match4 >= 2) return 'A';
+    if (p.match4 >= 1 && p.match3 >= 1) return 'B';
+    if (p.match3 >= 1) return 'C';
+    return 'D';
+}
+
+function getGradeColor(grade) {
+    switch(grade) {
+        case 'S': return '#ff0000';
+        case 'A': return '#ff6600';
+        case 'B': return '#ffd700';
+        case 'C': return '#00cc66';
+        default: return '#6666ff';
+    }
+}
+
+function isAlreadyWon(nums) {
+    let numSet = nums.slice().sort((a,b)=>a-b).join(',');
+    for (let i = 0; i < allData.length; i++) {
+        let dSet = allData[i].numbers.slice().sort((a,b)=>a-b).join(',');
+        if (numSet === dSet) return true;
+    }
+    return false;
+}
+
+// ============================================
+// 내 확정 번호 관리 (Firebase + localStorage)
+// ============================================
+function getMyNumbers() {
+    return JSON.parse(localStorage.getItem('my_lotto_numbers') || '[]');
+}
+
+async function saveMyNumber(nums, grade, label) {
+    let myNums = getMyNumbers();
+    let today = new Date();
+    let dateStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+    let lastRound = allData[allData.length - 1].round;
+    let id = Date.now();
+    
+    let newEntry = {
+        id: id,
+        numbers: nums.slice().sort((a,b) => a-b),
+        grade: grade,
+        label: label,
+        date: dateStr,
+        savedAtRound: lastRound
+    };
+    
+    myNums.push(newEntry);
+    localStorage.setItem('my_lotto_numbers', JSON.stringify(myNums));
+    
+    // Firebase 저장
+    try {
+        await window.fireSetDoc(window.fireDoc(window.fireDB, 'myNumbers', String(id)), newEntry);
+    } catch(e) {
+        console.log('내 번호 Firebase 저장 에러:', e);
+    }
+    
+    showMyNumbers();
+    checkMyMatches();
+    alert('✅ 번호 확정 저장 완료!\n[' + nums.sort((a,b)=>a-b).join(', ') + ']\n☁️ 서버에 안전하게 저장되었습니다!');
+}
+
+async function deleteMyNumber(id) {
+    if (!confirm('이 번호를 삭제하시겠습니까?')) return;
+    let myNums = getMyNumbers();
+    myNums = myNums.filter(m => m.id !== id);
+    localStorage.setItem('my_lotto_numbers', JSON.stringify(myNums));
+    
+    // Firebase 삭제
+    try {
+        await window.fireDeleteDoc(window.fireDoc(window.fireDB, 'myNumbers', String(id)));
+    } catch(e) {
+        console.log('Firebase 삭제 에러:', e);
+    }
+    
+    showMyNumbers();
+}
+
+function showMyNumbers() {
+    let myNums = getMyNumbers();
+    let html = '';
+    
+    if (myNums.length === 0) {
+        html = '<div class="msg msg-info">아직 확정한 번호가 없습니다. 위 추천 게임에서 "✅ 확정" 버튼을 눌러보세요!</div>';
+    } else {
+        html += '<div style="color:#ffd700;font-size:14px;margin-bottom:10px;">총 <b>' + myNums.length + '</b>개 번호 저장됨 ☁️</div>';
+        
+        myNums.slice().reverse().forEach(m => {
+            let bestMatch = 0;
+            let bestRound = 0;
+            let bestBonus = false;
+            
+            for (let i = 0; i < allData.length; i++) {
+                if (allData[i].round <= m.savedAtRound) continue;
+                let mc = countMatches(m.numbers, allData[i].numbers);
+                if (mc > bestMatch) {
+                    bestMatch = mc;
+                    bestRound = allData[i].round;
+                    bestBonus = (m.numbers.indexOf(allData[i].bonus) !== -1);
+                }
+            }
+            
+            html += '<div class="my-card">';
+            html += '<div>';
+            html += '<span class="grade-badge" style="background:' + getGradeColor(m.grade) + '">' + m.grade + '</span>';
+            html += '<span style="color:#aaa;font-size:12px;">' + m.date + ' 저장 (' + m.savedAtRound + '회차 기준)</span><br>';
+            html += '<div style="margin:5px 0;">';
+            m.numbers.forEach(n => { html += makeBall(n); });
+            html += '</div>';
+            
+            if (bestMatch >= 3) {
+                let matchCls = 'match-low';
+                let matchTxt = '';
+                if (bestMatch === 6) { matchCls = 'match-6'; matchTxt = '🎉 1등!! (' + bestRound + '회)'; }
+                else if (bestMatch === 5 && bestBonus) { matchCls = 'match-5'; matchTxt = '🎊 2등! (' + bestRound + '회)'; }
+                else if (bestMatch === 5) { matchCls = 'match-5'; matchTxt = '🎊 3등! (' + bestRound + '회)'; }
+                else if (bestMatch === 4) { matchCls = 'match-4'; matchTxt = '4등 (' + bestRound + '회)'; }
+                else if (bestMatch === 3) { matchCls = 'match-3'; matchTxt = '5등 (' + bestRound + '회)'; }
+                html += '<span class="match-info ' + matchCls + '">최고 기록: ' + matchTxt + ' - ' + bestMatch + '개 일치</span>';
+            } else if (bestRound > 0) {
+                html += '<span class="match-info match-low">아직 3개 이상 일치 없음</span>';
+            } else {
+                html += '<span class="match-info match-low">다음 추첨을 기다리는 중...</span>';
+            }
+            
+            html += '</div>';
+            html += '<button class="btn-delete" onclick="deleteMyNumber(' + m.id + ')">🗑️ 삭제</button>';
+            html += '</div>';
+        });
+    }
+    
+    document.getElementById('myNumbers').innerHTML = html;
+}
+
+function checkMyMatches() {
+    let myNums = getMyNumbers();
+    if (myNums.length === 0) return;
+    
+    let lastDraw = allData[allData.length - 1];
+    let alertHtml = '';
+    
+    myNums.forEach(m => {
+        if (m.savedAtRound >= lastDraw.round) return;
+        let mc = countMatches(m.numbers, lastDraw.numbers);
+        let hasBonus = (m.numbers.indexOf(lastDraw.bonus) !== -1);
+        
+        if (mc === 6) {
+            alertHtml += '<div class="msg msg-match">🎉🎉🎉 대박!! [' + m.numbers.join(', ') + '] 이 ' + lastDraw.round + '회차 <b>1등</b>에 당첨!! 🎉🎉🎉</div>';
+        } else if (mc === 5 && hasBonus) {
+            alertHtml += '<div class="msg msg-match">🎊🎊 [' + m.numbers.join(', ') + '] 이 ' + lastDraw.round + '회차 <b>2등</b>에 당첨! (' + mc + '개 + 보너스)</div>';
+        } else if (mc === 5) {
+            alertHtml += '<div class="msg msg-match">🎊 [' + m.numbers.join(', ') + '] 이 ' + lastDraw.round + '회차 <b>3등</b>! (' + mc + '개 일치)</div>';
+        } else if (mc === 4) {
+            alertHtml += '<div class="msg" style="background:#3a3a1a;color:#ffcc00;border:1px solid #aa8800;font-size:15px;">🎯 [' + m.numbers.join(', ') + '] → ' + lastDraw.round + '회차 <b>4등</b> ' + mc + '개 일치!</div>';
+        } else if (mc === 3) {
+            alertHtml += '<div class="msg msg-info">✨ [' + m.numbers.join(', ') + '] → ' + lastDraw.round + '회차 <b>5등</b> ' + mc + '개 일치</div>';
+        }
+    });
+    
+    document.getElementById('matchAlert').innerHTML = alertHtml;
+}
+// ============================================
+// 추천 5게임 생성
+// ============================================
+function generateRecommendations() {
+    let freq = {};
+    for (let i = 1; i <= 45; i++) freq[i] = 0;
+    let recent = allData.slice(-100);
+    recent.forEach(d => { d.numbers.forEach(n => { freq[n]++; }); });
+    
+    let sorted = Object.keys(freq).map(k => ({num:parseInt(k), count:freq[k]}));
+    sorted.sort((a, b) => b.count - a.count);
+    
+    let hotNums = sorted.slice(0, 20).map(s => s.num);
+    let midNums = sorted.slice(10, 30).map(s => s.num);
+    
+    let match4Freq = {};
+    for (let i = 1; i <= 45; i++) match4Freq[i] = 0;
+    let startIdx = Math.max(0, allData.length - 300);
+    for (let i = startIdx; i < allData.length; i++) {
+        let p = analyzePattern(i);
+        if (p.match4 >= 2) { allData[i].numbers.forEach(n => { match4Freq[n] += 2; }); }
+        else if (p.match4 >= 1) { allData[i].numbers.forEach(n => { match4Freq[n]++; }); }
+    }
+    let m4Sorted = Object.keys(match4Freq).map(k => ({num:parseInt(k), score:match4Freq[k]}));
+    m4Sorted.sort((a, b) => b.score - a.score);
+    let strongNums = m4Sorted.slice(0, 15).map(s => s.num);
+    
+    let match5Freq = {};
+    for (let i = 1; i <= 45; i++) match5Freq[i] = 0;
+    for (let i = startIdx; i < allData.length; i++) {
+        let p = analyzePattern(i);
+        if (p.match5 >= 1) { allData[i].numbers.forEach(n => { match5Freq[n] += 3; }); }
+    }
+    let m5Sorted = Object.keys(match5Freq).map(k => ({num:parseInt(k), score:match5Freq[k]}));
+    m5Sorted.sort((a, b) => b.score - a.score);
+    let eliteNums = m5Sorted.filter(s => s.score > 0).slice(0, 15).map(s => s.num);
+    
+    let totalScore = {};
+    for (let i = 1; i <= 45; i++) totalScore[i] = 0;
+    sorted.forEach((s, idx) => { totalScore[s.num] += (45 - idx); });
+    m4Sorted.forEach(s => { totalScore[s.num] += s.score * 2; });
+    m5Sorted.forEach(s => { totalScore[s.num] += s.score * 3; });
+    let finalSorted = Object.keys(totalScore).map(k => ({num:parseInt(k), score:totalScore[k]}));
+    finalSorted.sort((a, b) => b.score - a.score);
+    
+    let games = [
+        { grade:'S', label:'S등급: 5등3+4등2 패턴', desc:'집중도 최고, 4등 패턴 강세 숫자 조합' },
+        { grade:'A', label:'A등급: 3등 경험 희귀 패턴', desc:'5개 일치 이력 보유 숫자 중심 조합' },
+        { grade:'A', label:'A등급: 4등 다수 검증 패턴', desc:'4등 2회 이상 경험한 검증된 숫자 조합' },
+        { grade:'B', label:'B등급: 현실적 안정 패턴', desc:'최근 출현 빈도 높은 안정적 조합' },
+        { grade:'C', label:'C등급: 성장형 기대 패턴', desc:'5등 다수 축적, 상승 기대 조합' }
+    ];
+    
+    let allUsed = [];
+    let pools = [
+        { scored: finalSorted, prefer: strongNums },
+        { scored: finalSorted, prefer: eliteNums.length > 0 ? eliteNums : strongNums },
+        { scored: m4Sorted, prefer: hotNums },
+        { scored: sorted, prefer: midNums },
+        { scored: sorted, prefer: sorted.map(s=>s.num) }
+    ];
+    
+    for (let g = 0; g < 5; g++) {
+        let attempts = 0;
+        let nums;
+        do {
+            nums = pickNumbers(pools[g].scored, pools[g].prefer, 6, allUsed);
+            attempts++;
+        } while (isAlreadyWon(nums) && attempts < 50);
+        games[g].nums = nums.sort((a,b) => a-b);
+        allUsed = allUsed.concat(nums);
+    }
+    
+    let html = '';
+    games.forEach((g, idx) => {
+        html += '<div class="game-card grade-' + g.grade + '">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">';
+        html += '<div><span class="grade-badge">' + g.grade + '</span><b>게임 ' + (idx+1) + '</b> - ' + g.label + '</div>';
+        html += '<button class="btn-confirm" onclick=\'saveMyNumber(' + JSON.stringify(g.nums) + ',"' + g.grade + '","' + g.label + '")\'>✅ 확정</button>';
+        html += '</div>';
+        html += '<div style="margin:8px 0;">';
+        g.nums.forEach(n => { html += makeBall(n); });
+        html += '</div>';
+        html += '<div class="pattern-info">💡 ' + g.desc + '</div>';
+        html += '<div class="no-dup">✅ 과거 1등 당첨 이력 없는 조합 확인 완료</div>';
+        html += '</div>';
+    });
+    
+    document.getElementById('recommendations').innerHTML = html;
+}
+
+function pickNumbers(scoredList, preferNums, count, exclude) {
+    let result = [];
+    let used = new Set();
+    exclude.forEach(n => used.add(n));
+    
+    let shuffledPref = shuffleArray([...preferNums]);
+    for (let i = 0; i < shuffledPref.length && result.length < Math.ceil(count * 0.6); i++) {
+        let n = shuffledPref[i];
+        if (!used.has(n)) { result.push(n); used.add(n); }
+    }
+    
+    let candidates = scoredList.map(s => s.num || s);
+    let shuffledCand = shuffleArray([...candidates.slice(0, 25)]);
+    for (let i = 0; i < shuffledCand.length && result.length < count; i++) {
+        let n = shuffledCand[i];
+        if (!used.has(n)) { result.push(n); used.add(n); }
+    }
+    
+    while (result.length < count) {
+        let n = Math.floor(Math.random() * 45) + 1;
+        if (!used.has(n)) { result.push(n); used.add(n); }
+    }
+    return result;
+}
+
+function shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        let j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+// ============================================
+// 패턴 통계
+// ============================================
+function showPatternStats() {
+    let startIdx = 0;
+    for (let i = 0; i < allData.length; i++) {
+        if (allData[i].round >= 200) { startIdx = i; break; }
+    }
+    
+    let patternCount = {};
+    let patternExamples = {};
+    let totalAnalyzed = 0;
+    
+    for (let i = startIdx; i < allData.length; i++) {
+        let p = analyzePattern(i);
+        let key = p.match3 + '-' + p.match4 + '-' + p.match5;
+        if (!patternCount[key]) { patternCount[key] = 0; patternExamples[key] = []; }
+        patternCount[key]++;
+        if (patternExamples[key].length < 3) patternExamples[key].push(allData[i].round);
+        totalAnalyzed++;
+    }
+    
+    let sortedKeys = Object.keys(patternCount).sort((a, b) => patternCount[b] - patternCount[a]);
+    
+    let html = '<div class="msg msg-info">📊 분석 대상: ' + totalAnalyzed + '회차 (200회~' + allData[allData.length-1].round + '회)</div>';
+    html += '<table class="stats-table"><tr><th>순위</th><th>패턴 (5등-4등-3등)</th><th>횟수</th><th>비율</th><th>등급</th><th>대표 회차</th></tr>';
+    
+    let rank = 1;
+    for (let i = 0; i < Math.min(sortedKeys.length, 20); i++) {
+        let key = sortedKeys[i];
+        let parts = key.split('-');
+        let p = {match3:parseInt(parts[0]), match4:parseInt(parts[1]), match5:parseInt(parts[2])};
+        let grade = getGrade(p);
+        let pct = (patternCount[key] / totalAnalyzed * 100).toFixed(1);
+        let medal = rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : rank;
+        html += '<tr><td>' + medal + '</td><td>5등 ' + p.match3 + '회, 4등 ' + p.match4 + '회, 3등 ' + p.match5 + '회</td>';
+        html += '<td><b>' + patternCount[key] + '회</b></td><td>' + pct + '%</td>';
+        html += '<td><span class="grade-badge" style="background:' + getGradeColor(grade) + '">' + grade + '</span></td>';
+        html += '<td style="font-size:11px;color:#888;">' + patternExamples[key].join(', ') + '회</td></tr>';
+        rank++;
+    }
+    html += '</table>';
+    
+    let gradeCount = {S:0,A:0,B:0,C:0,D:0};
+    for (let i = startIdx; i < allData.length; i++) {
+        let p = analyzePattern(i);
+        gradeCount[getGrade(p)]++;
+    }
+    html += '<h3>📈 등급별 분포</h3><div class="pattern-bar">';
+    let colors = {S:'#ff0000',A:'#ff6600',B:'#ffd700',C:'#00cc66',D:'#6666ff'};
+    for (let g of ['S','A','B','C','D']) {
+        let w = (gradeCount[g] / totalAnalyzed * 100);
+        if (w > 0) html += '<div class="pattern-bar-item" style="width:' + Math.max(w,5) + '%;background:' + colors[g] + '">' + g + ' ' + gradeCount[g] + '</div>';
+    }
+    html += '</div>';
+    document.getElementById('patternStats').innerHTML = html;
+}
+
+// ============================================
+// 핫넘버
+// ============================================
+function showHotNumbers() {
+    let freq = {};
+    for (let i = 1; i <= 45; i++) freq[i] = 0;
+    let recent = allData.slice(-100);
+    recent.forEach(d => { d.numbers.forEach(n => { freq[n]++; }); });
+    
+    let sorted = Object.keys(freq).map(k => ({num:parseInt(k), count:freq[k]}));
+    sorted.sort((a, b) => b.count - a.count);
+    
+    let html = '<div style="margin:10px 0;">';
+    html += '<h3>🔴 상위 15개</h3><div>';
+    for (let i = 0; i < 15; i++) html += '<span class="hot-number hot-high">' + sorted[i].num + '<br><small>' + sorted[i].count + '</small></span>';
+    html += '</div><h3 style="margin-top:15px;">🟡 중위 15개</h3><div>';
+    for (let i = 15; i < 30; i++) html += '<span class="hot-number hot-mid">' + sorted[i].num + '<br><small>' + sorted[i].count + '</small></span>';
+    html += '</div><h3 style="margin-top:15px;">🔵 하위 15개</h3><div>';
+    for (let i = 30; i < 45; i++) html += '<span class="hot-number hot-low">' + sorted[i].num + '<br><small>' + sorted[i].count + '</small></span>';
+    html += '</div></div>';
+    document.getElementById('hotNumbers').innerHTML = html;
+}
+
+// ============================================
+// 최근 당첨번호 / 최근 20회
+// ============================================
+function showLastDraw() {
+    let last = allData[allData.length - 1];
+    let html = '<span>제 <b style="color:#ffd700;font-size:18px;">' + last.round + '</b>회</span>';
+    last.numbers.forEach(n => { html += makeBall(n); });
+    html += '<span style="color:#e94560;font-size:18px;margin:0 5px;">+</span>';
+    html += '<span class="ball" style="background:#e94560;">' + last.bonus + '</span>';
+    document.getElementById('lastDraw').innerHTML = html;
+}
+
+function showRecentData() {
+    let recent = allData.slice(-20).reverse();
+    let html = '<table class="stats-table"><tr><th>회차</th><th>당첨번호</th><th>보너스</th><th>패턴(5등-4등-3등)</th><th>등급</th></tr>';
+    recent.forEach(d => {
+        let idx = allData.findIndex(x => x.round === d.round);
+        let p = analyzePattern(idx);
+        let grade = getGrade(p);
+        html += '<tr><td><b>' + d.round + '</b>회</td><td>';
+        d.numbers.forEach(n => { html += makeBall(n); });
+        html += '</td><td>' + makeBall(d.bonus) + '</td>';
+        html += '<td>' + p.match3 + '-' + p.match4 + '-' + p.match5 + '</td>';
+        html += '<td><span class="grade-badge" style="background:' + getGradeColor(grade) + '">' + grade + '</span></td></tr>';
+    });
+    html += '</table>';
+    document.getElementById('recentData').innerHTML = html;
+}
+
+// ============================================
+// 전체 새로고침
+// ============================================
+function refreshAll() {
+    showLastDraw();
+    generateRecommendations();
+    showMyNumbers();
+    checkMyMatches();
+    showPatternStats();
+    showHotNumbers();
+    showRecentData();
+    if (allData.length > 0) {
+        document.getElementById('inputRound').value = allData[allData.length-1].round + 1;
+    }
+}
+
+// ============================================
+// 시작!
+// ============================================
+initData();
+refreshAll();
+
+// Firebase 준비되면 서버에서 데이터 불러오기
+if (window.firebaseReady) {
+    loadFromFirebase();
+    loadMyNumbersFromFirebase();
+} else {
+    window.addEventListener('firebaseReady', function() {
+        loadFromFirebase();
+        loadMyNumbersFromFirebase();
+    });
+}
+</script>
+</body>
+</html>
